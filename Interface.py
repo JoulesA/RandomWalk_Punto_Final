@@ -1,5 +1,6 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton
+from PyQt5.QtWidgets import QLineEdit
 from PyQt5.QtGui import QFont, QIcon
 from PyQt5.QtCore import Qt
 
@@ -166,6 +167,63 @@ class RandWalk:
     
     return(self.steps)
 
+##################################################################
+# FUNCIONES PARA POLINOMIOS
+def Smoothis(vec, n = 3):
+  # Vec es el vector de entrada mientras que n es el grado del filtro
+  vec_filtrado = []
+  for i in range(len(vec)):
+      if i < n-1:
+          vec_filtrado.append(vec[i])
+      else:
+          suma = sum(vec[i-n+1:i+1,:])
+          media_movil = suma / n
+          vec_filtrado.append(media_movil)
+  vec_filtrado = np.array(vec_filtrado)
+  return vec_filtrado
+
+def findInflexion(vec):
+  
+  # Calcula la segunda derivada de los datos suavizados
+  segunda_derivada = np.gradient(np.gradient(vec))
+
+  # Encuentra los índices donde la segunda derivada cambia de signo
+  puntos_de_inflexion = np.where(np.diff(np.sign(segunda_derivada)))[0]
+
+  # Muestra los puntos de inflexión encontrados
+  print("Puntos de inflexión encontrados en los datos:", puntos_de_inflexion)
+  return puntos_de_inflexion
+# Calculo de los polinomios de bezel dados dos puntos de inflexion
+# y el tiempo entre ellos (tf)
+def BezelPol(theta0,thetaf, tf,t0 = 0):
+  # Vector X
+  x = [[theta0],[0],[0],[thetaf],[0],[0]]
+  x = np.array(x)
+
+  # Computo de terminos de potencia 
+  t2 = t0**2
+  t3 = t2*t0
+  t4 = t3*t0
+  t5 = t4*t0
+  tf2 = tf**2
+  tf3 = tf2*tf
+  tf4 = tf3*tf
+  tf5 = tf4*tf
+
+  # Calculo de matriz A
+  A = [
+      [1, t0, t2, t3, t4, t5],
+      [0, 1, 2*t0, 3*t2, 4*t3, 5*t4],
+      [0, 0, 2, 6*t0, 12*t2, 20*t3],
+      [1, tf, tf2, tf3, tf4, tf5],
+      [0, 1, 2*tf, 3*tf2, 4*tf3, 5*tf4],
+      [0, 0, 2, 6*tf, 12*tf2, 20*tf3],
+  ]
+  A = np.array(A)
+
+  # Calulo de coeficientes Y
+  Y = np.linalg.inv(A)@x
+  return Y
 
 ##################################################################
 # INTERFAZ 
@@ -226,7 +284,7 @@ class MainWindow(QWidget):
 
             # Items
         posLabel1 = QLabel("Posicion inicial")
-        posLabel2 = QLabel("Posicion final")
+        posLabel2 = QLabel("Posicion final:")
         self.ap1 = QLabel("Eslabon 1: " + str(self.actPoints[0]))
         fp1 = QLabel("Eslabon 1: " + str(self.finalPoints[0]))
         self.ap2 = QLabel("Eslabon 2: " + str(self.actPoints[1]))
@@ -234,60 +292,45 @@ class MainWindow(QWidget):
         self.ap3 = QLabel("Eslabon 3: " + str(self.actPoints[2]))
         self.fp3 = QLabel("Eslabon 3: " + str(self.finalPoints[2]))
 
-        Xlabel = QLabel("X")
-        Ylabel = QLabel("Y")
-        Zlabel = QLabel("Z")
-        boton1 = QPushButton("+")
-        boton1.clicked.connect(self.btn1)
-        boton2 = QPushButton("-")
-        boton2.clicked.connect(self.btn2)
-        boton3 = QPushButton("+")
-        boton3.clicked.connect(self.btn3)
-        boton4 = QPushButton("-")
-        boton4.clicked.connect(self.btn4)
-        boton5 = QPushButton("+")
-        boton5.clicked.connect(self.btn5)
-        boton6 = QPushButton("-")
-        boton6.clicked.connect(self.btn6)
-
         boton7 = QPushButton("Correr simulacion")
         boton7.clicked.connect(self.btn7)
         boton8 = QPushButton("Ejecutar movimiento")
         boton8.clicked.connect(self.btn8)
 
-        # Botones en la caja X
-        x_box = QHBoxLayout()
-        x_box.addWidget(boton1)
-        x_box.addWidget(Xlabel, 0, alignment=Qt.AlignCenter)
-        x_box.addWidget(boton2)
-        
-        # Botones en la caja Y
-        y_box = QHBoxLayout()
-        y_box.addWidget(boton3)
-        y_box.addWidget(Ylabel, 0, alignment=Qt.AlignCenter)
-        y_box.addWidget(boton4)
+        # Caja de labels para ejes
+        x_lb = QLabel("X")
+        y_lb = QLabel("Y")
+        z_lb = QLabel("Z")
+        ax_labels = QHBoxLayout()
+        ax_labels.addWidget(x_lb, 0, alignment=Qt.AlignCenter)
+        ax_labels.addWidget(y_lb, 0, alignment=Qt.AlignCenter)
+        ax_labels.addWidget(z_lb, 0, alignment=Qt.AlignCenter)
 
-        # Botones en la caja Z
-        z_box = QHBoxLayout()
-        z_box.addWidget(boton5)
-        z_box.addWidget(Zlabel, 0, alignment=Qt.AlignCenter)
-        z_box.addWidget(boton6)
+        # Caja de comentarios en la caja ejes
+        self.axe_X = QLineEdit()
+        self.axe_Y = QLineEdit()
+        self.axe_Z = QLineEdit()
+        ax_box = QHBoxLayout()
+        ax_box.addWidget(self.axe_X)
+        ax_box.addWidget(self.axe_Y)
+        ax_box.addWidget(self.axe_Z)
 
         # Agregar elementos al contenedor 2
+        # Posicion inicial
         vbox2.addWidget(posLabel1)
         vbox2.addWidget(self.ap1, 0, alignment=Qt.AlignCenter)
         vbox2.addWidget(self.ap2, 0, alignment=Qt.AlignCenter)
         vbox2.addWidget(self.ap3, 0, alignment=Qt.AlignCenter)
 
+        # Posicion final
         vbox2.addWidget(posLabel2)
-        #vbox2.addWidget(fp1, 0, alignment=Qt.AlignCenter)
-        #vbox2.addWidget(fp2, 0, alignment=Qt.AlignCenter)
-        vbox2.addWidget(self.fp3, 0, alignment=Qt.AlignCenter)
+        # vbox2.addWidget(fp1, 0, alignment=Qt.AlignCenter)
+        # vbox2.addWidget(fp2, 0, alignment=Qt.AlignCenter)
+        # vbox2.addWidget(self.fp3, 0, alignment=Qt.AlignCenter)
 
             # Añadir cajas de botones al contenedor 2
-        vbox2.addLayout(x_box)
-        vbox2.addLayout(y_box)
-        vbox2.addLayout(z_box)
+        vbox2.addLayout(ax_labels)
+        vbox2.addLayout(ax_box)
 
         vbox2.addWidget(boton7)
         vbox2.addWidget(boton8)
@@ -304,45 +347,25 @@ class MainWindow(QWidget):
         self.setGeometry(100, 100, 800, 400)
 
         # Agregar un ícono a la ventana principal
-        icon = QIcon("Icon.png")
-        self.setWindowIcon(icon)
+        # icon = QIcon("Icon.png")
+        # self.setWindowIcon(icon)
 
     # Funciones de los botones
-    def btn1(self):
-        self.finalPoints[2][0] += 0.1
-        self.fp3.setText("Eslabon 3: " + str(self.finalPoints[2]))
-    
-    def btn2(self):
-        self.finalPoints[2][0] -= 0.1
-        self.fp3.setText("Eslabon 3: " + str(self.finalPoints[2]))
-
-    def btn3(self):
-        self.finalPoints[2][1] += 0.1
-        self.fp3.setText("Eslabon 3: " + str(self.finalPoints[2]))
-
-    def btn4(self):
-        self.finalPoints[2][1] -= 0.1
-        self.fp3.setText("Eslabon 3: " + str(self.finalPoints[2]))
-
-    def btn5(self):
-        self.finalPoints[2][2] += 0.1
-        self.fp3.setText("Eslabon 3: " + str(self.finalPoints[2]))
-
-    def btn6(self):
-        self.finalPoints[2][2] -= 0.1
-        self.fp3.setText("Eslabon 3: " + str(self.finalPoints[2]))
-
     def btn7(self):
+        # Obtener posiciones deseadas de la caja 
+        Xpos = float(self.axe_X.text())
+        Ypos = float(self.axe_Y.text())
+        Zpos = float(self.axe_Z.text())
+        punto = [Xpos, Ypos, Zpos]
+
+        # Declaramos nuestro objeto para caminar
         Walker = RandWalk()
-        punto = self.finalPoints[2]
-        # print(punto)
+
+        # Pedimos la ruta a punto
         ruta = Walker.WalkTo(punto)
         print('Pasos en ruta: ')
         print(len(ruta))
-        # print('Espacio articular: ')
-        # print(ruta[-1])
         R = CinemaDirect(ruta[-1])
-        # print('Posicion del ultimo eslabon: ')
 
         # Borramos el grafico anterior
         self.ax.cla()
@@ -375,6 +398,7 @@ class MainWindow(QWidget):
         #Actualizar grafico
         self.canvas.draw()
 
+        # Este for muestra los espacios articulares y su posicion en el espacio de trabajo
         for step in ruta:
           print('Espacio articular: ')
           print(step)
@@ -384,10 +408,69 @@ class MainWindow(QWidget):
                           R[2][0:3,3]])
           print('Coordenadas trabajo: ')
           print(coor)
-          
+        
+        ruta = np.array(ruta)
+
+        # A partir de aqui usando ruta calculamos los polinomios de beziel 
+        smoot = Smoothis(ruta)  # Aplica filtro de media movil
+
+        # Dividimos por dimension en el espacio de trabajo
+        the1 = smoot[:,0]
+        the2 = smoot[:,1]
+        the3 = smoot[:,2]
+ 
+        inflex_TH1 = findInflexion(the1)
+        inflex_TH2 = findInflexion(the2)
+        inflex_TH3 = findInflexion(the3)
+
+        print('Inflexion points for theta 1:') #pht1
+        pht1 = []
+        for p in inflex_TH1:
+          tupla = [the1[p],p]
+          pht1.append(tupla)
+        pht1 = np.array(pht1)
+        print(pht1)
+
+        print('Inflexion points for theta 2:') #pht2
+        pht2 = []
+        for p in inflex_TH2:
+          tupla = [the2[p],p]
+          pht2.append(tupla)
+        pht2 = np.array(pht2)
+        print(pht2)
+
+
+        print('Inflexion points for theta 3:') #pht3
+        pht3 = []
+        for p in inflex_TH3:
+          tupla = [the3[p],p]
+          pht3.append(tupla)
+        pht3 = np.array(pht3)
+        print(pht3)
+        
+        # Calculo de TODOS los polinomios 
+        t1pols = []
+        for i in range(len(pht1)-1):
+          diff = pht1[i+1,1]-pht1[i,1]
+          t1pols.append(BezelPol(pht1[i,0],pht1[i+1,0],diff))
+
+        t2pols = []
+        for i in range(len(pht2)-1):
+          diff = pht2[i+1,1]-pht2[i,1]
+          t2pols.append(BezelPol(pht2[i,0],pht2[i+1,0],diff))
+
+        t3pols = []
+        for i in range(len(pht3)-1):
+          diff = pht3[i+1,1]-pht3[i,1]
+          t3pols.append(BezelPol(pht3[i,0],pht3[i+1,0],diff))
+        
+        print(t1pols)
+        print(t2pols)
+        print(t3pols)
 
     def btn8(self):
         print("Botón 6 fue presionado")
+    
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
